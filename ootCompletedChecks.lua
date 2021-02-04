@@ -69,47 +69,47 @@ end
 -- Offsets for scenes can be found here
 -- https://wiki.cloudmodding.com/oot/Scene_Table/NTSC_1.0
 -- Each scene is 0x1c bits long, chests at 0x0, switches at 0x4, collectibles at 0xc
-local scene_check = function(scene_offset, check_bit_mask, scene_data_offset, check_name)
+local scene_check = function(scene_offset, bit_to_check, scene_data_offset, check_name)
     local local_scene_offset = scene_flags_offset + (0x1c * scene_offset) + scene_data_offset;
     debug('\r\nLocal scene offset: 0x' .. string.format("%x",local_scene_offset))
 
     local nearby_memory = mainmemory.read_u32_be(local_scene_offset)
     debug('Local memory block 0x' .. string.format("%x", nearby_memory))
 
-    debug('Checking bit #'..check_bit_mask)
-    local match = bit.check(nearby_memory,check_bit_mask)
+    debug('Checking bit #'..bit_to_check)
+    local match = bit.check(nearby_memory,bit_to_check)
     print_check_message(check_name, match)
 end
 
 
-local chest_check = function(scene_offset, check_bit_mask, check_name)
-    scene_check(scene_offset, check_bit_mask, 0x0, check_name)
+local chest_check = function(scene_offset, bit_to_check, check_name)
+    scene_check(scene_offset, bit_to_check, 0x0, check_name)
 end
 
-local on_the_ground_check = function(scene_offset, check_bit_mask,  check_name)
-    scene_check(scene_offset, check_bit_mask, 0xC, check_name)
+local on_the_ground_check = function(scene_offset, bit_to_check,  check_name)
+    scene_check(scene_offset, bit_to_check, 0xC, check_name)
 end
 
 --NOTE: Scrubs seem to be stored in the "unused" block of scene memory
-local scrub_check = function(scene_offset, check_bit_mask, check_name)
-    scene_check(scene_offset, check_bit_mask, 0x10, check_name)
+local scrub_check = function(scene_offset, bit_to_check, check_name)
+    scene_check(scene_offset, bit_to_check, 0x10, check_name)
 end
 
-local cow_check = function(scene_offset, check_bit_mask,  check_name)
-    scene_check(scene_offset, check_bit_mask, 0xC, check_name)
+local cow_check = function(scene_offset, bit_to_check,  check_name)
+    scene_check(scene_offset, bit_to_check, 0xC, check_name)
 end
 
 --NOTE: Possibly in a different scene?
-local bean_sale_check = function(scene_offset, check_bit_mask,  check_name)
-    scene_check(scene_offset, check_bit_mask, 0x14, check_name)
+local bean_sale_check = function(scene_offset, bit_to_check,  check_name)
+    scene_check(scene_offset, bit_to_check, 0x14, check_name)
 end
 
-local great_fairy_magic_check = function(scene_offset,check_bit_mask,check_name)
-    scene_check(scene_offset, check_bit_mask, 0x4, check_name)
+local great_fairy_magic_check = function(scene_offset,bit_to_check,check_name)
+    scene_check(scene_offset, bit_to_check, 0x4, check_name)
 end
 
-local membership_card_check = function(scene_offset,check_bit_mask,check_name)
-    scene_check(scene_offset, check_bit_mask, 0x4, check_name)
+local membership_card_check = function(scene_offset,bit_to_check,check_name)
+    scene_check(scene_offset, bit_to_check, 0x4, check_name)
 end
 
 --Helper method to resolve skulltula lookup location
@@ -119,7 +119,7 @@ end
 
 --NOTE: The Rando LocationList offsets are bit masks not locations, so 0x1 -> 0 offset, 0x2 -> 1 offset, 0x4 -> 2 offset, 0x8 -> 3 offset, etc.
 --NOTE:  8-bit array, scene_offsets are filled on [0x00,0x15] but use a lookup array above
-local skulltula_check = function(scene_offset, check_bit_mask, check_name)
+local skulltula_check = function(scene_offset, bit_to_check, check_name)
     debug('\r\nLocal scene offset: ')
 
     --For some reason the skulltula array isn't a straight mapping from the scene ID
@@ -131,15 +131,15 @@ local skulltula_check = function(scene_offset, check_bit_mask, check_name)
     local nearby_memory = mainmemory.read_u8(local_skulltula_offset)
     debug('Local memory block 0x' .. string.format("%x",nearby_memory))
 
-    debug('Checking bit #'..check_bit_mask)
-    local match = bit.check(nearby_memory,check_bit_mask)
+    debug('Checking bit #'..bit_to_check)
+    local match = bit.check(nearby_memory,bit_to_check)
     print_check_message(check_name, match)
 end
 
 -- Left shelf bit masks are:
 -- 0x8    0x2
 -- 0x4    0x1
-local shop_check = function(shop_offset, item_bit_mask, check_name)
+local shop_check = function(shop_offset, item_offset, check_name)
     debug('\r\nLocal shop offset: ')
 
     local local_shop_offset = shop_context_offset;
@@ -148,7 +148,7 @@ local shop_check = function(shop_offset, item_bit_mask, check_name)
     local nearby_memory = mainmemory.read_u32_be(local_shop_offset)
     debug('Local memory block 0x' .. string.format("%x",nearby_memory))
 
-    local bitToCheck = shop_offset*4 + item_bit_mask
+    local bitToCheck = shop_offset*4 + item_offset
 
     debug('Checking bit #'..bitToCheck)
 
@@ -175,20 +175,20 @@ end
 
 -- Offsets can be found at the OOT save context layout here:
 -- https://wiki.cloudmodding.com/oot/Save_Format#event_chk_inf
-local event_check = function(major_offset,bit_mask,event_name)
+local event_check = function(major_offset,bit_to_check,event_name)
     -- shifting over to the next 4 hex digits
     local event_address = event_context_offset + 0x2 * major_offset;
     debug('0x' .. string.format("%x",event_address))
 
     local u_16_event_row = mainmemory.read_u16_be(event_address)
-    debug('Local memory block 0x' .. string.format("%x",u_16_event_row) .. ' checking bit 0x' .. string.format("%x",bit_mask));
+    debug('Local memory block 0x' .. string.format("%x",u_16_event_row) .. ' checking bit 0x' .. string.format("%x",bit_to_check));
 
-    local match = bit.check(u_16_event_row,bit_mask)
+    local match = bit.check(u_16_event_row,bit_to_check)
     print_check_message(event_name, match)
 end
 
 --Used by the game to track some non-quest item event flags
-local item_get_info_check = function(check_offset,check_bit_mask,check_name)
+local item_get_info_check = function(check_offset,bit_to_check,check_name)
     debug('\r\nLocal scene offset: ')
 
     local local_offset = item_get_inf_offset + (check_offset);
@@ -197,13 +197,13 @@ local item_get_info_check = function(check_offset,check_bit_mask,check_name)
     local nearby_memory = mainmemory.read_u8(local_offset)
     debug('Local memory block 0x' .. string.format("%x",nearby_memory))
 
-    debug('Checking bit #'..check_bit_mask)
-    local match = bit.check(nearby_memory,check_bit_mask)
+    debug('Checking bit #'..bit_to_check)
+    local match = bit.check(nearby_memory,bit_to_check)
     print_check_message(check_name, match)
 end
 
 --Used by the game to track lots of misc information (Talking to people, getting items, etc.)
-local info_table_check = function(check_offset,check_bit_mask,check_name)
+local info_table_check = function(check_offset,bit_to_check,check_name)
     debug('\r\nLocal scene offset: ')
 
     local local_offset = inf_table_offset + (check_offset);
@@ -212,8 +212,8 @@ local info_table_check = function(check_offset,check_bit_mask,check_name)
     local nearby_memory = mainmemory.read_u8(local_offset)
     debug('Local memory block 0x' .. string.format("%x",nearby_memory))
 
-    debug('Checking bit #'..check_bit_mask)
-    local match = bit.check(nearby_memory,check_bit_mask)
+    debug('Checking bit #'..bit_to_check)
+    local match = bit.check(nearby_memory,bit_to_check)
     print_check_message(check_name, match)
 end
 
@@ -419,7 +419,7 @@ local print_hyrule_castle_checks = function()
     event_check(0x5,0x9,'Zelda\'s lullaby check')
     event_check(0x1,0x2,'Strange egg from Malon check')
     event_check(0x4,0x0,'Zelda\'s letter check')
-    item_get_info_check(0x2,0x1,'Din\s fire check')
+    item_get_info_check(0x2,0x1,'Din\'s fire check')
     skulltula_check(0xE,0x2,'Skulltula in tree')
     skulltula_check(0xE,0x1,'Skulltula in storms grotto')
 end
@@ -642,7 +642,7 @@ local print_fire_temple_checks = function()
 end
 
 local print_zoras_river_checks = function()
-    print_check_category_header('Zora\s River')
+    print_check_category_header('Zora\'s River')
     bean_sale_check(0x54,0x18,'Bean salesman check')
     chest_check(0x3E, 0x09, 'Open grotto on ledge chest')
     event_check(0xD,0x6,'Song of storms for frogs')
@@ -660,20 +660,20 @@ local print_zoras_river_checks = function()
 end
 
 local print_zoras_domain_checks = function()
-    print_check_category_header('Zora\s Domain')
+    print_check_category_header('Zora\'s Domain')
     event_check(0x3,0x8,'Diving minigame')
     chest_check(0x58, 0x00, 'Torches Chest')
     info_table_check(0x26,0x1,"Thawed King Zora")
     skulltula_check(0x11,0x6,'Skulltula by frozen waterfall')
 
-    shop_check(0x2, 0x3, 'Zora\s Domain top-left shop item')
-    shop_check(0x2, 0x1, 'Zora\s Domain top-right shop item')
-    shop_check(0x2, 0x2, 'Zora\s Domain bottom-left shop item')
-    shop_check(0x2, 0x0, 'Zora\s Domain bottom-right shop item')
+    shop_check(0x2, 0x3, 'Zora\'s Domain top-left shop item')
+    shop_check(0x2, 0x1, 'Zora\'s Domain top-right shop item')
+    shop_check(0x2, 0x2, 'Zora\'s Domain bottom-left shop item')
+    shop_check(0x2, 0x0, 'Zora\'s Domain bottom-right shop item')
 end
 
 local print_zoras_fountain_checks = function()
-    print_check_category_header('Zora\s Fountain')
+    print_check_category_header('Zora\'s Fountain')
     item_get_info_check(0x2,0x0,'Farore\'s wind check')
     on_the_ground_check(0x59,0x01,'Iceberg HP')
     on_the_ground_check(0x59,0x14,'Bottom of lake HP')
