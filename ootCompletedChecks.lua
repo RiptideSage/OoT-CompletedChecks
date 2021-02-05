@@ -1,30 +1,47 @@
 -- NOTES
--- This printer isn't directly compatible with MQ
+-- TODO MQ toggles?
 
 --TODO more toggles based on rando settings
 local NUM_BIG_POES_REQIURED = 1
 
 --TODO future commandline / button toggles
+local PRINT_COMPLETED_ZONE_HEADERS = false
 local PRINT_COMPLETED_CHECKS = false
 local PRINT_MISSING_CHECKS = true
+
+--Used to enable debug printing. Usually this should be: false
+local DEBUG = false
 
 -- The offset constants are all from N64 RAM start. Offsets in the check statements are relative.
 local save_context_offset = 0x11A5D0
 
-local scene_flags_offset = save_context_offset + 0x00D4 --0x11A6A4
+local equipment_offset = save_context_offset + 0x70 -- 0x11A640
+local scene_flags_offset = save_context_offset + 0xD4 --0x11A6A4
+local shop_context_offset = save_context_offset + 0x5B4 --0x11AB84
 local skulltula_flags_offset = save_context_offset + 0xE9C --0x11B46C
 local event_context_offset = save_context_offset + 0xED4 --0x11B4A4
+local fishing_context_offset = save_context_offset + 0xEC0 --0x11B490
+local big_poe_points_offset =  save_context_offset + 0xEEC -- 0x11B4BC
 local item_get_inf_offset = save_context_offset + 0xEF0 --0x11B4C0
 local inf_table_offset = save_context_offset + 0xEF8 -- 0x11B4C8
 
-local shop_context_offset = save_context_offset + 0x5B4 --0x11AB84
-local fishing_context_offset = save_context_offset + 0xEC0 --0x11B490
-local big_poe_points_offset =  save_context_offset + 0xEEC -- 0x11B48C
 
-local equipment_offset = save_context_offset + 0x70 -- 0x11A640
+-- Used to prevent passing the zone through the whole call stack
+local current_zone
 
---Used to enable debug printing. Usually this should be: false
-local DEBUG = false
+-- Contains the status of each check
+-- Layout: {"zone_name" = { "checkName" = true, "otherCheckName" = false, ...}, "other_zone_name" = .... }
+local check_list= {}
+
+-- Helper table to record the number of checks in each zone to display
+-- Layout: {"zone_name" = 1, ...}
+local num_zone_checks_completed = {}
+
+-- Helper table to record the number of checks in each zone to display
+-- Layout: {"zone_name" = 1, ...}
+local num_zone_checks_total = {}
+
+
 
 local debug = function(message)
     if DEBUG then
@@ -33,23 +50,27 @@ local debug = function(message)
 end
 
 -- Helper method for item check printing
-local print_check_category_header = function(category_name)
-    local header_length = 70
-    local header_divider_character = '#'
-    local left_header_string = string.rep(header_divider_character,(header_length-string.len(category_name))/2)
-    local right_header_string = string.rep(header_divider_character,(header_length-string.len(category_name))/2)
+local print_zone_header = function(zone_name)
+    if PRINT_COMPLETED_ZONE_HEADERS or (num_zone_checks_completed[zone_name] < num_zone_checks_total[zone_name]) then
+        local header_length = 70
+        local header_divider_character = '#'
+        local left_header_string = string.rep(header_divider_character,(header_length-string.len(zone_name))/2)
+        local right_header_string = string.rep(header_divider_character,(header_length-string.len(zone_name))/2)
 
-    --Rounding errors, correct for more spacing to odd length names
-    if(string.len(category_name)%2 == 1)then
-        right_header_string = right_header_string..header_divider_character
+        local center_header_string = zone_name..' ('..num_zone_checks_completed[zone_name]..'/'..num_zone_checks_total[zone_name]..')'
+
+        --Rounding errors, correct for more spacing to odd length names
+        if(string.len(center_header_string)%2 == 1)then
+            right_header_string = right_header_string..header_divider_character
+        end
+
+        print('\r\n'..left_header_string..' '..center_header_string..' '..right_header_string)
     end
-
-    print('\r\n'..left_header_string..' '..category_name..' '..right_header_string)
 end
 
 
 -- Helper method for item check printing
-local print_check_message = function(check_name, check_completed)
+local print_check = function(check_name, check_completed)
     local justify_check_status = 50
     local space_string = ' '
     local spacer = string.rep(space_string,justify_check_status-string.len(check_name))
@@ -66,6 +87,37 @@ local print_check_message = function(check_name, check_completed)
 end
 
 
+local print_check_list = function()
+    debug('---------------------START Checks Summary---------------------')
+    for zone_name, zone_checks in next, check_list do
+        print_zone_header(zone_name)
+        for check_name, check_completed in next, check_list[zone_name] do
+            print_check(check_name, check_completed)
+        end
+    end
+    debug('----------------------END Checks Summary----------------------\r\n\r\n\r\n')
+end
+
+
+--Recording all of the checks into a common object
+local record_check = function(check_name, check_completed)
+    if check_list[current_zone] == nil then
+        check_list[current_zone] = {}
+        num_zone_checks_completed[current_zone] = 0
+        num_zone_checks_total[current_zone] = 0
+    end
+
+   local current_zone_checks = check_list[current_zone]
+    current_zone_checks[check_name] = check_completed
+
+    if check_completed then
+        num_zone_checks_completed[current_zone] = num_zone_checks_completed[current_zone] + 1
+    end
+
+    num_zone_checks_total[current_zone] =  num_zone_checks_total[current_zone] + 1
+end
+
+
 -- Offsets for scenes can be found here
 -- https://wiki.cloudmodding.com/oot/Scene_Table/NTSC_1.0
 -- Each scene is 0x1c bits long, chests at 0x0, switches at 0x4, collectibles at 0xc
@@ -78,7 +130,7 @@ local scene_check = function(scene_offset, bit_to_check, scene_data_offset, chec
 
     debug('Checking bit #'..bit_to_check)
     local match = bit.check(nearby_memory,bit_to_check)
-    print_check_message(check_name, match)
+    record_check(check_name, match)
 end
 
 
@@ -133,7 +185,7 @@ local skulltula_check = function(scene_offset, bit_to_check, check_name)
 
     debug('Checking bit #'..bit_to_check)
     local match = bit.check(nearby_memory,bit_to_check)
-    print_check_message(check_name, match)
+    record_check(check_name, match)
 end
 
 -- Left shelf bit masks are:
@@ -153,7 +205,7 @@ local shop_check = function(shop_offset, item_offset, check_name)
     debug('Checking bit #'..bitToCheck)
 
     local match = bit.check(nearby_memory,bitToCheck)
-    print_check_message(check_name, match)
+    record_check(check_name, match)
 end
 
 --NOTE: Getting the bit poe bottle isn't flagged directly, instead only the points on the card are saved
@@ -168,9 +220,8 @@ local big_poe_bottle_check = function(check_name)
     debug('Points required: '..points_required)
 
     local match = (nearby_memory >= points_required)
-    print_check_message(check_name, match)
+    record_check(check_name, match)
 end
-
 
 
 -- Offsets can be found at the OOT save context layout here:
@@ -184,7 +235,7 @@ local event_check = function(major_offset,bit_to_check,event_name)
     debug('Local memory block 0x' .. string.format("%x",u_16_event_row) .. ' checking bit 0x' .. string.format("%x",bit_to_check));
 
     local match = bit.check(u_16_event_row,bit_to_check)
-    print_check_message(event_name, match)
+    record_check(event_name, match)
 end
 
 --Used by the game to track some non-quest item event flags
@@ -199,7 +250,7 @@ local item_get_info_check = function(check_offset,bit_to_check,check_name)
 
     debug('Checking bit #'..bit_to_check)
     local match = bit.check(nearby_memory,bit_to_check)
-    print_check_message(check_name, match)
+    record_check(check_name, match)
 end
 
 --Used by the game to track lots of misc information (Talking to people, getting items, etc.)
@@ -214,7 +265,7 @@ local info_table_check = function(check_offset,bit_to_check,check_name)
 
     debug('Checking bit #'..bit_to_check)
     local match = bit.check(nearby_memory,bit_to_check)
-    print_check_message(check_name, match)
+    record_check(check_name, match)
 end
 
 -- The fishing records are intricate and in their own memory area
@@ -230,7 +281,7 @@ local fishing_check = function(isAdult,check_name)
 
     debug('Checking bit #'..bitToCheck)
     local match = bit.check(nearby_memory,bitToCheck)
-    print_check_message(check_name, match)
+    record_check(check_name, match)
 end
 
 
@@ -242,24 +293,23 @@ local big_gorron_sword_check = function (check_name)
 
     debug('Checking bit #'..bitToCheck)
     local match = bit.check(nearby_memory,bitToCheck)
-    print_check_message(check_name, match)
+    record_check(check_name, match)
 end
 
 
 
 
-local print_kokiri_forest_checks = function()
-    print_check_category_header('Kokiri Forest')
-
-    chest_check(0x28, 0x00, 'Midos top left chest')
-    chest_check(0x28, 0x01, 'Midos top right chest')
-    chest_check(0x28, 0x02, 'Midos bottom left chest')
-    chest_check(0x28, 0x03, 'Midos bottom right chest')
+local read_kokiri_forest_checks = function()
+    current_zone = 'Kokiri Forest'
+    chest_check(0x28, 0x00, 'Mido\'s top left chest')
+    chest_check(0x28, 0x01, 'Mido\'s top right chest')
+    chest_check(0x28, 0x02, 'Mido\'s bottom left chest')
+    chest_check(0x28, 0x03, 'Mido\'s bottom right chest')
     chest_check(0x55, 0x00, 'Kokiri Sword chest')
 
     cow_check(0x34,0x18,"Cow in house")
 
-    skulltula_check(0x0C,0x0,'Skulltula in soft soil ')
+    skulltula_check(0x0C,0x0,'Skulltula in soft soil')
     skulltula_check(0x0C,0x1,'Skulltula on Know-it-All\'s House')
     skulltula_check(0x0C,0x2,'Skulltula on Twin\'s House')
 
@@ -271,8 +321,8 @@ local print_kokiri_forest_checks = function()
     chest_check(0x3E, 0x0C, 'Storms grotto chest')
 end
 
-local print_lost_woods_checks = function()
-    print_check_category_header('Lost Woods')
+local read_lost_woods_checks = function()
+    current_zone = 'Lost Woods'
     event_check(0xC,0x1,'Fairy ocarina check')
     scrub_check(0x5B,0x2,'Right theater scrub')
     scrub_check(0x5B,0x1,'Left theater scrub')
@@ -291,19 +341,19 @@ local print_lost_woods_checks = function()
     skulltula_check(0x0D,0x2,'Skulltula above theater')
 end
 
-local print_sacred_forest_meadow_checks = function()
-    print_check_category_header('Sacred Forest Meadow')
+local read_sacred_forest_meadow_checks = function()
+    current_zone = 'Sacred Forest Meadow'
     event_check(0x5,0x7,'Saria\'s song check')
     skulltula_check(0x0D,0x3,'Skulltula on wall')
-    chest_check(0x3E, 0x11, 'Wolfos Grotto chest')
+    chest_check(0x3E, 0x11, 'Wolfos grotto chest')
     scrub_check(0x18,0x8,"Storms grotto left scrub")
     scrub_check(0x18,0x9,"Storms grotto right scrub")
 
     event_check(0x5,0x0,'Minuet of forest check')
 end
 
-local print_deku_tree_checks = function()
-    print_check_category_header('Deku Tree')
+local read_deku_tree_checks = function()
+    current_zone = 'Deku Tree'
     chest_check(0x00,0x3,'Map chest')
     chest_check(0x00,0x5,'Slingshot room side chest')
     chest_check(0x00,0x1,'Slingshot chest')
@@ -321,8 +371,8 @@ local print_deku_tree_checks = function()
     event_check(0x0,0x7,'Kokiri Emerald Check')
 end
 
-local print_forest_temple_checks = function()
-    print_check_category_header('Forest Temple')
+local read_forest_temple_checks = function()
+    current_zone = 'Forest Temple'
     chest_check(0x3,0x3,'Entry room tree chest')
     chest_check(0x3,0x0,'First stalfos chest')
     chest_check(0x3,0x5,'Raised island courtyard chest')
@@ -347,8 +397,8 @@ local print_forest_temple_checks = function()
     event_check(0x4,0x8,'Forest medallion check')
 end
 
-local print_hyrule_field_checks = function()
-    print_check_category_header('Hyrule Field')
+local read_hyrule_field_checks = function()
+    current_zone = 'Hyrule Field'
     event_check(0x4,0x3,'Ocarina of time check')
     event_check(0xA,0x9,'Song of time check')
     chest_check(0x3E, 0x00, 'Grotto by Market Chest')
@@ -362,8 +412,8 @@ local print_hyrule_field_checks = function()
     skulltula_check(0x0A,0x1,'Skulltula in grotto near Kakariko')
 end
 
-local print_lon_lon_ranch_checks = function()
-    print_check_category_header('Lon Lon Ranch')
+local read_lon_lon_ranch_checks = function()
+    current_zone = 'Lon Lon Ranch'
     event_check(0x5,0x8,'Epona\'s song check')
     item_get_info_check(0x1,0x2,'Talon\'s cucco minigame bottle')
     on_the_ground_check(0x4C, 0x01, 'Block puzzle HP')
@@ -385,8 +435,8 @@ local print_lon_lon_ranch_checks = function()
 end
 
 --NOTE Logic has bombchus from bomchu bowling here, but it's an endless drop so it is not printed
-local print_market_checks = function()
-    print_check_category_header('Market')
+local read_market_checks = function()
+    current_zone = 'Market'
     item_get_info_check(0x0,0x5,'Child shooting gallery')
     item_get_info_check(0x3,0x1,'Bombchu bowling prize #1')
     item_get_info_check(0x3,0x2,'Bombchu bowling prize #2')
@@ -414,8 +464,8 @@ local print_market_checks = function()
     shop_check(0x1, 0x0, 'Market Bombchu bottom-right shop item')
 end
 
-local print_hyrule_castle_checks = function()
-    print_check_category_header('Hyrule Castle')
+local read_hyrule_castle_checks = function()
+    current_zone = 'Hyrule Castle'
     event_check(0x5,0x9,'Zelda\'s lullaby check')
     event_check(0x1,0x2,'Strange egg from Malon check')
     event_check(0x4,0x0,'Zelda\'s letter check')
@@ -424,8 +474,8 @@ local print_hyrule_castle_checks = function()
     skulltula_check(0xE,0x1,'Skulltula in storms grotto')
 end
 
-local print_kakariko_village_checks = function()
-    print_check_category_header('Kakariko Village')
+local read_kakariko_village_checks = function()
+    current_zone = 'Kakariko Village'
     event_check(0x5,0xB,'Song of storms check')
     event_check(0x5,0x4,'Nocturne of shadows check')
     item_get_info_check(0x0,0x4,'Cucco collecting bottle')
@@ -462,8 +512,8 @@ local print_kakariko_village_checks = function()
     shop_check(0x3, 0x0, 'Kakariko Potion bottom-right shop item')
 end
 
-local print_graveyard_checks = function()
-    print_check_category_header('Graveyard')
+local read_graveyard_checks = function()
+    current_zone = 'Graveyard'
     event_check(0x5,0xA,'Sun\'s song check')
     chest_check(0x40, 0x00, 'Shield grave chest')
     chest_check(0x3F, 0x00, 'Sun song grave HP')
@@ -478,8 +528,8 @@ local print_graveyard_checks = function()
     skulltula_check(0x10,0x7,'Skulltula on wall')
 end
 
-local print_bottom_of_the_well_checks = function()
-    print_check_category_header('Bottom of the Well')
+local read_bottom_of_the_well_checks = function()
+    current_zone = 'Bottom of the Well'
     chest_check(0x08, 0x08, 'Front-left fake wall chest')
     chest_check(0x08, 0x02, 'Front-center bombable chest')
     chest_check(0x08, 0x04, 'Back-left bombable chest')
@@ -500,8 +550,8 @@ local print_bottom_of_the_well_checks = function()
     skulltula_check(0x08,0x0,'Skulltula in like like cage')
 end
 
-local print_shadow_temple_checks = function()
-    print_check_category_header('Shadow Temple')
+local read_shadow_temple_checks = function()
+    current_zone = 'Shadow Temple'
     chest_check(0x07, 0x01, 'Map chest')
     chest_check(0x07, 0x07, 'Hover boots chest')
     chest_check(0x07, 0x03, 'Compass chest')
@@ -534,8 +584,8 @@ local print_shadow_temple_checks = function()
     on_the_ground_check(0x18,0x1F,'Shadow medallion')
 end
 
-local print_death_mountain_trail_checks = function()
-    print_check_category_header('Death Mountain Trail')
+local read_death_mountain_trail_checks = function()
+    current_zone = 'Death Mountain Trail'
     on_the_ground_check(0x60,0x1E,'HP above Dodongo\'s Cavern')
     chest_check(0x60, 0x01, 'Chest by Goron City')
     chest_check(0x3E, 0x17, 'Storms grotto chest')
@@ -549,8 +599,8 @@ local print_death_mountain_trail_checks = function()
     skulltula_check(0x0F,0x4,'Skulltula on falling rocks path')
 end
 
-local print_goron_city_checks = function()
-    print_check_category_header('Goron City')
+local read_goron_city_checks = function()
+    current_zone = 'Goron City'
     event_check(0x5,0x7,'Darunia\'s joy')
     on_the_ground_check(0x62,0x1F,'Spinning Pot HP')
     info_table_check(0x22,0x6,"Stop rolling goron as child")
@@ -572,8 +622,8 @@ local print_goron_city_checks = function()
     shop_check(0x5, 0x0, 'Goron City bottom-right shop item')
 end
 
-local print_death_mountain_crater_checks = function()
-    print_check_category_header('Death Mountain Crater')
+local read_death_mountain_crater_checks = function()
+    current_zone = 'Death Mountain Crater'
     event_check(0x5,0x1,'Bolero of fire check')
     on_the_ground_check(0x61,0x08,'Volcano HP')
     on_the_ground_check(0x61,0x02,'Climb wall HP')
@@ -590,8 +640,8 @@ local print_death_mountain_crater_checks = function()
     skulltula_check(0x0F,0x0,'Skulltula in soft soil')
 end
 
-local print_dodongos_cavern_checks = function()
-    print_check_category_header('Dodongo\'s Cavern')
+local read_dodongos_cavern_checks = function()
+    current_zone = 'Dodongo\'s Cavern'
     chest_check(0x01, 0x8, 'Map chest')
     chest_check(0x01, 0x5, 'Compass chest')
     chest_check(0x01, 0x6, 'Bomb flower platform chest')
@@ -614,8 +664,8 @@ local print_dodongos_cavern_checks = function()
     event_check(0x2,0x5,'Goron\'s Ruby check')
 end
 
-local print_fire_temple_checks = function()
-    print_check_category_header('Fire Temple')
+local read_fire_temple_checks = function()
+    current_zone = 'Fire Temple'
     chest_check(0x04, 0x01, 'Chest near boss room')
     chest_check(0x04, 0x00, 'Flare dancer chest')
     chest_check(0x04, 0x0C, 'Boss key chest')
@@ -641,8 +691,8 @@ local print_fire_temple_checks = function()
     event_check(0x4,0x9,'Fire medallion check')
 end
 
-local print_zoras_river_checks = function()
-    print_check_category_header('Zora\'s River')
+local read_zoras_river_checks = function()
+    current_zone = 'Zora\'s River'
     bean_sale_check(0x54,0x18,'Bean salesman check')
     chest_check(0x3E, 0x09, 'Open grotto on ledge chest')
     event_check(0xD,0x6,'Song of storms for frogs')
@@ -659,8 +709,8 @@ local print_zoras_river_checks = function()
     skulltula_check(0x11,0x3,'Skulltula on wall above bridge')
 end
 
-local print_zoras_domain_checks = function()
-    print_check_category_header('Zora\'s Domain')
+local read_zoras_domain_checks = function()
+    current_zone = 'Zora\'s Domain'
     event_check(0x3,0x8,'Diving minigame')
     chest_check(0x58, 0x00, 'Torches Chest')
     info_table_check(0x26,0x1,"Thawed King Zora")
@@ -672,8 +722,8 @@ local print_zoras_domain_checks = function()
     shop_check(0x2, 0x0, 'Zora\'s Domain bottom-right shop item')
 end
 
-local print_zoras_fountain_checks = function()
-    print_check_category_header('Zora\'s Fountain')
+local read_zoras_fountain_checks = function()
+    current_zone = 'Zora\'s Fountain'
     item_get_info_check(0x2,0x0,'Farore\'s wind check')
     on_the_ground_check(0x59,0x01,'Iceberg HP')
     on_the_ground_check(0x59,0x14,'Bottom of lake HP')
@@ -682,8 +732,8 @@ local print_zoras_fountain_checks = function()
     skulltula_check(0x11,0x5,'Skulltula in hidden cave')
 end
 
-local print_jabu_checks = function()
-    print_check_category_header('Jabu Jabu\'s Belly')
+local read_jabu_checks = function()
+    current_zone = 'Jabu Jabu\'s Belly'
     chest_check(0x02, 0x01, 'Boomerang chest')
     chest_check(0x02, 0x02, 'Map chest')
     chest_check(0x02, 0x04, 'Compass chest')
@@ -697,8 +747,8 @@ local print_jabu_checks = function()
     event_check(0x3,0x7,'Zora\'s sapphire check')
 end
 
-local print_ice_cavern_checks = function()
-    print_check_category_header('Ice Cavern')
+local read_ice_cavern_checks = function()
+    current_zone = 'Ice Cavern'
     event_check(0x5,0x2,'Serenade of water')
     chest_check(0x09, 0x00, 'Map chest')
     chest_check(0x09, 0x01, 'Compass chest')
@@ -709,8 +759,8 @@ local print_ice_cavern_checks = function()
     skulltula_check(0x09,0x0,'Skulltula in push block room')
 end
 
-local print_lake_hylia_checks = function()
-    print_check_category_header('Lake Hylia')
+local read_lake_hylia_checks = function()
+    current_zone = 'Lake Hylia'
     event_check(0x3,0x1,'Ruto\'s letter check')
     fishing_check(false,"Child fishing reward")
     fishing_check(true,"Adult fishing reward")
@@ -729,8 +779,8 @@ local print_lake_hylia_checks = function()
     skulltula_check(0x12,0x4,'Skulltula in big tree')
 end
 
-local print_water_temple_checks = function()
-    print_check_category_header('Water Temple')
+local read_water_temple_checks = function()
+    current_zone = 'Water Temple'
     chest_check(0x05, 0x09, 'Compass chest')
     chest_check(0x05, 0x02, 'Map chest')
     chest_check(0x05, 0x00, 'Cracked wall chest')
@@ -752,8 +802,8 @@ local print_water_temple_checks = function()
     event_check(0x4,0xA,'Water medallion check')
 end
 
-local print_gerudo_valley_checks = function()
-    print_check_category_header('Gerudo Valley')
+local read_gerudo_valley_checks = function()
+    current_zone = 'Gerudo Valley'
     on_the_ground_check(0x5A,0x2,'Crate on ledge HP')
     on_the_ground_check(0x5A,0x1,'Waterfall HP')
     chest_check(0x5A, 0x00, 'Hammer rock chest')
@@ -767,8 +817,8 @@ local print_gerudo_valley_checks = function()
     skulltula_check(0x13,0x2,'Skulltula on pillar')
 end
 
-local print_gerudo_fortress_checks = function()
-    print_check_category_header('Gerudo Fortress')
+local read_gerudo_fortress_checks = function()
+    current_zone = 'Gerudo Fortress'
     on_the_ground_check(0xC,0xC,'North F1 Carpenter')
     on_the_ground_check(0xC,0xA,'North F2 Carpenter')
     on_the_ground_check(0xC,0xE,'South F1 Carpenter')
@@ -781,8 +831,8 @@ local print_gerudo_fortress_checks = function()
     skulltula_check(0x14,0x0,'Skulltula on far archery target')
 end
 
-local print_gerudo_training_ground_checks = function()
-    print_check_category_header('Gerudo Training Ground')
+local read_gerudo_training_ground_checks = function()
+    current_zone = 'Gerudo Training Ground'
     chest_check(0x0B, 0x13, 'Lobby left chest')
     chest_check(0x0B, 0x07, 'Lobby right chest')
     chest_check(0x0B, 0x00, 'Stalfos chest')
@@ -807,16 +857,16 @@ local print_gerudo_training_ground_checks = function()
     chest_check(0x0B, 0x0C, 'Maze path final chest')
 end
 
-local print_haunted_wasteland_checks = function()
-    print_check_category_header('Haunted Wasteland')
+local read_haunted_wasteland_checks = function()
+    current_zone = 'Haunted Wasteland'
     --TODO Verify in a playthough
     on_the_ground_check(0x5E,0x01,'Carpet salesman check')
     chest_check(0x5E, 0x00, 'Wasteland chest')
     skulltula_check(0x15,0x1,'Skulltula in shelter')
 end
 
-local print_desert_colossus_checks = function()
-    print_check_category_header('Desert Colossus')
+local read_desert_colossus_checks = function()
+    current_zone = 'Desert Colossus'
     event_check(0xA,0xC,'Requiem of spirit check')
     item_get_info_check(0x2,0x2,'Naryu\'s love check')
     on_the_ground_check(0x5C,0xD,'HP on arch')
@@ -828,8 +878,8 @@ local print_desert_colossus_checks = function()
     skulltula_check(0x15,0x0,'Skulltula in soft soil')
 end
 
-local print_spirit_temple_checks = function()
-    print_check_category_header('Spirit Temple')
+local read_spirit_temple_checks = function()
+    current_zone = 'Spirit Temple'
     chest_check(0x06, 0x08, 'Child bridge chest')
     chest_check(0x06, 0x00, 'Child early torches chest')
     chest_check(0x06, 0x06, 'Child climb North chest')
@@ -862,12 +912,11 @@ local print_spirit_temple_checks = function()
     event_check(0xC,0x8,'Spirit medallion check')
 end
 
-local print_ganons_castle_checks = function()
-    print_check_category_header('Ganon\'s Castle')
+local read_ganons_castle_checks = function()
+    current_zone = 'Ganon\'s Castle'
     great_fairy_magic_check(0x3B, 0x8, 'Ganon\'s Castle great fairy')
     skulltula_check(0x0E,0x0,'Skulltula outside on pillar')
-
-
+    
     chest_check(0x0D, 0x09, 'Forest trial chest')
     chest_check(0x0D, 0x07, 'Water trial left chest')
     chest_check(0x0D, 0x06, 'Water trial right chest')
@@ -890,54 +939,48 @@ local print_ganons_castle_checks = function()
     scrub_check(0xD,0x9,"Lobby right scrub")
 
     chest_check(0x0A, 0x0B, 'Ganon\'s Tower boss key chest')
-
 end
 
--- NOTES: Rando has the lists of checks here https://github.com/Roman971/OoT-Randomizer/tree/Dev-R/data/World
+
 -- NOTES: Since BizHawk doesn't modify the ROM, but instead interacts with the RAM directly this checker category_name
 --        use the solo-player Rando memory addresses.
-function print_item_check_statuses()
-    print('---------------------START Checks Summary---------------------')
-    print_kokiri_forest_checks()
-    print_lost_woods_checks()
-    print_sacred_forest_meadow_checks()
-    print_deku_tree_checks()
-    print_forest_temple_checks()
-    print_hyrule_field_checks()
-    print_lon_lon_ranch_checks()
-    print_market_checks()
-    print_hyrule_castle_checks()
-    print_kakariko_village_checks()
-    print_graveyard_checks()
-    print_bottom_of_the_well_checks()
-    print_shadow_temple_checks()
-    print_death_mountain_trail_checks()
-    print_goron_city_checks()
-    print_death_mountain_crater_checks()
-    print_dodongos_cavern_checks()
-    print_fire_temple_checks()
-    print_zoras_river_checks()
-    print_zoras_domain_checks()
-    print_zoras_fountain_checks()
-    print_jabu_checks()
-    print_ice_cavern_checks()
-    print_lake_hylia_checks()
-    print_water_temple_checks()
-    print_gerudo_valley_checks()
-    print_gerudo_fortress_checks()
-    print_gerudo_training_ground_checks()
-    print_haunted_wasteland_checks()
-    print_desert_colossus_checks()
-    print_spirit_temple_checks()
-    print_ganons_castle_checks()
-    print('----------------------END Checks Summary----------------------\r\n\r\n\r\n')
+function update_item_check_statuses()
+    read_kokiri_forest_checks()
+    read_lost_woods_checks()
+    read_sacred_forest_meadow_checks()
+    read_deku_tree_checks()
+    read_forest_temple_checks()
+    read_hyrule_field_checks()
+    read_lon_lon_ranch_checks()
+    read_market_checks()
+    read_hyrule_castle_checks()
+    read_kakariko_village_checks()
+    read_graveyard_checks()
+    read_bottom_of_the_well_checks()
+    read_shadow_temple_checks()
+    read_death_mountain_trail_checks()
+    read_goron_city_checks()
+    read_death_mountain_crater_checks()
+    read_dodongos_cavern_checks()
+    read_fire_temple_checks()
+    read_zoras_river_checks()
+    read_zoras_domain_checks()
+    read_zoras_fountain_checks()
+    read_jabu_checks()
+    read_ice_cavern_checks()
+    read_lake_hylia_checks()
+    read_water_temple_checks()
+    read_gerudo_valley_checks()
+    read_gerudo_fortress_checks()
+    read_gerudo_training_ground_checks()
+    read_haunted_wasteland_checks()
+    read_desert_colossus_checks()
+    read_spirit_temple_checks()
+    read_ganons_castle_checks()
 end
 
 
 ---------- Main Method -----------------
---TODO make this pull an Object and then write it
---TODO add item counts (5/10) to zones / main header
-
---TODO compress completed zones into a short line
 --TODO make this an asynch call
-print_item_check_statuses()
+update_item_check_statuses()
+print_check_list()
