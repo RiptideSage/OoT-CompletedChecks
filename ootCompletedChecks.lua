@@ -6,7 +6,7 @@ local SHOP_SANITY = true
 local COW_SANITY= true
 
 local PRINT_COMPLETED_ZONE_HEADERS = true
-local PRINT_COMPLETED_CHECKS = false
+local PRINT_COMPLETED_CHECKS = true
 local PRINT_MISSING_CHECKS = true
 
 --Used to enable debug printing. Usually this should be: false
@@ -54,6 +54,8 @@ local num_zone_checks_completed = {}
 -- Layout: {"zone_name" = 1, ...}
 local num_zone_checks_total = {}
 
+-- A string buffer to prevent multiple I/O calls to print.
+local check_log_string
 
 
 local debug = function(message)
@@ -77,7 +79,7 @@ local print_zone_header = function(zone_name)
             right_header_string = right_header_string..header_divider_character
         end
 
-        print('\r\n'..left_header_string..' '..center_header_string..' '..right_header_string)
+        check_log_string = check_log_string..'\r\n'..left_header_string..' '..center_header_string..' '..right_header_string..'\r\n'
     end
 end
 
@@ -90,11 +92,11 @@ local print_check = function(check_name, check_completed)
 
     if check_completed then
         if PRINT_COMPLETED_CHECKS then
-            print(check_name .. ':'..spacer..'Completed')
+            check_log_string = check_log_string..check_name .. ':'..spacer..'Completed'..'\r\n'
         end
     else
         if PRINT_MISSING_CHECKS then
-            print(check_name .. ':'..spacer..'Missing')
+            check_log_string = check_log_string..check_name .. ':'..spacer..'Missing'..'\r\n'
         end
     end
 end
@@ -102,6 +104,7 @@ end
 
 local print_check_list = function()
     debug('---------------------START Checks Summary---------------------')
+    check_log_string = ''
     for next_zone_id=initial_zone_counter+1, current_zone_counter, 1 do
         local zone_name = counter_to_zone_map[next_zone_id]
         print_zone_header(zone_name)
@@ -109,6 +112,7 @@ local print_check_list = function()
             print_check(check_name, check_completed)
         end
     end
+    print(check_log_string)
     debug('----------------------END Checks Summary----------------------\r\n\r\n\r\n')
 end
 

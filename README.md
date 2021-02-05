@@ -7,7 +7,7 @@ This script reads the save file RAM directly from BizHawk to see what checks hav
 - Double click the script to run
 
 All remaining checks will print in the console output. 
-This will freeze the game while printing (0-5 seconds)
+This will freeze the game while printing (~1 second)
 
 # Currently supports
 - Shop-sanity
