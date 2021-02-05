@@ -6,7 +6,7 @@ local SHOP_SANITY = true
 local COW_SANITY= true
 
 local PRINT_COMPLETED_ZONE_HEADERS = true
-local PRINT_COMPLETED_CHECKS = true
+local PRINT_COMPLETED_CHECKS = false
 local PRINT_MISSING_CHECKS = true
 
 --Used to enable debug printing. Usually this should be: false
@@ -100,22 +100,6 @@ local print_check = function(check_name, check_completed)
         end
     end
 end
-
-
-local print_check_list = function()
-    debug('---------------------START Checks Summary---------------------')
-    check_log_string = ''
-    for next_zone_id=initial_zone_counter+1, current_zone_counter, 1 do
-        local zone_name = counter_to_zone_map[next_zone_id]
-        print_zone_header(zone_name)
-        for check_name, check_completed in next, check_list[next_zone_id] do
-            print_check(check_name, check_completed)
-        end
-    end
-    print(check_log_string)
-    debug('----------------------END Checks Summary----------------------\r\n\r\n\r\n')
-end
-
 
 --Recording all of the checks into a common object
 local record_check = function(check_name, check_completed)
@@ -971,6 +955,28 @@ local read_ganons_castle_checks = function()
     chest_check(0x0A, 0x0B, 'Ganon\'s Tower boss key chest')
 end
 
+-- Generates the string to display
+function write_check_list_string()
+    check_log_string = ''
+
+    if DEBUG then
+        check_log_string = check_log_string .. '---------------------START Checks Summary---------------------'
+    end
+
+    for next_zone_id=initial_zone_counter+1, current_zone_counter, 1 do
+        local zone_name = counter_to_zone_map[next_zone_id]
+        print_zone_header(zone_name)
+        for check_name, check_completed in next, check_list[next_zone_id] do
+            print_check(check_name, check_completed)
+        end
+    end
+
+    if DEBUG then
+        check_log_string = check_log_string .. '----------------------END Checks Summary----------------------\r\n\r\n\r\n'
+    end
+
+    return check_log_string
+end
 
 -- NOTES: Since BizHawk doesn't modify the ROM, but instead interacts with the RAM directly this checker category_name
 --        use the solo-player Rando memory addresses.
@@ -1013,7 +1019,6 @@ end
 
 
 ---------- Main Method -----------------
---TODO make this an asynch call
 --TODO MQ toggles?
 update_item_check_statuses()
-print_check_list()
+print(write_check_list_string())
