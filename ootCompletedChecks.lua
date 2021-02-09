@@ -43,8 +43,12 @@ local current_zone_counter = initial_zone_counter
 local counter_to_zone_map = {}
 
 -- Contains the status of each check
--- Layout: {"zone_name" = { "checkName" = true, "otherCheckName" = false, ...}, "other_zone_name" = .... }
+-- Layout: {"zone_name" = { 1:{"checkName" = true}, 2:{"otherCheckName" = false}, ...}, "other_zone_name" = .... }
 local check_list= {}
+
+-- Used to keep the in-zone checks listed in order
+local initial_in_zone_check_index = 0
+local current_in_zone_check_index = initial_in_zone_check_index
 
 -- Helper table to record the number of checks in each zone to display
 -- Layout: {"zone_name" = 1, ...}
@@ -53,6 +57,10 @@ local num_zone_checks_completed = {}
 -- Helper table to record the number of checks in each zone to display
 -- Layout: {"zone_name" = 1, ...}
 local num_zone_checks_total = {}
+
+-- Used for overall tracking
+local grand_total_checks_completed = 0
+local grand_total_checks_total = 0
 
 -- A string buffer to prevent multiple I/O calls to print.
 local check_log_string
@@ -64,44 +72,15 @@ local debug = function(message)
     end
 end
 
--- Helper method for item check printing
-local print_zone_header = function(zone_name)
-    if PRINT_COMPLETED_ZONE_HEADERS or (num_zone_checks_completed[zone_name] < num_zone_checks_total[zone_name]) then
-        local header_length = 70
-        local header_divider_character = '#'
-        local left_header_string = string.rep(header_divider_character,(header_length-string.len(zone_name))/2)
-        local right_header_string = string.rep(header_divider_character,(header_length-string.len(zone_name))/2)
-
-        local center_header_string = zone_name..' ('..num_zone_checks_completed[zone_name]..'/'..num_zone_checks_total[zone_name]..')'
-
-        --Rounding errors, correct for more spacing to odd length names
-        if(string.len(center_header_string)%2 == 1)then
-            right_header_string = right_header_string..header_divider_character
-        end
-
-        check_log_string = check_log_string..'\r\n'..left_header_string..' '..center_header_string..' '..right_header_string..'\r\n'
-    end
+-- Used to control check grouping
+local set_zone = function(zone_name)
+    current_zone = zone_name
+    current_zone_counter = current_zone_counter + 1
+    counter_to_zone_map[current_zone_counter] = zone_name
+    current_in_zone_check_index = initial_in_zone_check_index
 end
 
-
--- Helper method for item check printing
-local print_check = function(check_name, check_completed)
-    local justify_check_status = 50
-    local space_string = ' '
-    local spacer = string.rep(space_string,justify_check_status-string.len(check_name))
-
-    if check_completed then
-        if PRINT_COMPLETED_CHECKS then
-            check_log_string = check_log_string..check_name .. ':'..spacer..'Completed'..'\r\n'
-        end
-    else
-        if PRINT_MISSING_CHECKS then
-            check_log_string = check_log_string..check_name .. ':'..spacer..'Missing'..'\r\n'
-        end
-    end
-end
-
---Recording all of the checks into a common object
+-- Recording all of the checks into a common object
 local record_check = function(check_name, check_completed)
     if check_list[current_zone_counter] == nil then
         table.insert(check_list,current_zone_counter,{})
@@ -109,14 +88,18 @@ local record_check = function(check_name, check_completed)
         num_zone_checks_total[current_zone] = 0
     end
 
+    current_in_zone_check_index = current_in_zone_check_index + 1
+
    local zone_table = check_list[current_zone_counter]
-    zone_table[check_name] = check_completed
+    zone_table[current_in_zone_check_index] = {check_name, check_completed}
 
     if check_completed then
         num_zone_checks_completed[current_zone] = num_zone_checks_completed[current_zone] + 1
+        grand_total_checks_completed = grand_total_checks_completed + 1
     end
 
     num_zone_checks_total[current_zone] =  num_zone_checks_total[current_zone] + 1
+    grand_total_checks_total = grand_total_checks_total + 1
 end
 
 
@@ -304,13 +287,6 @@ local big_gorron_sword_check = function (check_name)
     debug('Checking bit #'..bitToCheck)
     local match = bit.check(nearby_memory,bitToCheck)
     record_check(check_name, match)
-end
-
-
-local set_zone = function(zone_name)
-    current_zone = zone_name
-    current_zone_counter = current_zone_counter + 1
-    counter_to_zone_map[current_zone_counter] = zone_name
 end
 
 local read_kokiri_forest_checks = function()
@@ -955,25 +931,78 @@ local read_ganons_castle_checks = function()
     chest_check(0x0A, 0x0B, 'Ganon\'s Tower boss key chest')
 end
 
+-- Helper method for item check printing
+local print_grand_total_header = function()
+    local header_length = 70
+    local header_divider_character = '&'
+    local header_name = 'Grand Total'
+    local left_header_string = string.rep(header_divider_character,(header_length-string.len(header_name))/2)
+    local right_header_string = string.rep(header_divider_character,(header_length-string.len(header_name))/2)
+
+    local center_header_string = header_name..' ('..grand_total_checks_completed..'/'..grand_total_checks_total..')'
+
+    --Rounding errors, correct for more spacing to odd length names
+    if(string.len(center_header_string)%2 == 1)then
+        right_header_string = right_header_string..header_divider_character
+    end
+
+    check_log_string = check_log_string ..'\r\n' ..left_header_string..' '..center_header_string..' '..right_header_string..'\r\n'
+end
+
+-- Helper method for item check printing
+local print_zone_header = function(zone_name)
+    if PRINT_COMPLETED_ZONE_HEADERS or (num_zone_checks_completed[zone_name] < num_zone_checks_total[zone_name]) then
+        local header_length = 70
+        local header_divider_character = '#'
+        local left_header_string = string.rep(header_divider_character,(header_length-string.len(zone_name))/2)
+        local right_header_string = string.rep(header_divider_character,(header_length-string.len(zone_name))/2)
+
+        local center_header_string = zone_name..' ('..num_zone_checks_completed[zone_name]..'/'..num_zone_checks_total[zone_name]..')'
+
+        --Rounding errors, correct for more spacing to odd length names
+        if(string.len(center_header_string)%2 == 1)then
+            right_header_string = right_header_string..header_divider_character
+        end
+
+        check_log_string = check_log_string..'\r\n'..left_header_string..' '..center_header_string..' '..right_header_string..'\r\n'
+    end
+end
+
+
+-- Helper method for item check printing
+local print_check = function(check_name, check_completed)
+    local justify_check_status = 50
+    local space_string = ' '
+    local spacer = string.rep(space_string,justify_check_status-string.len(check_name))
+
+    if check_completed then
+        if PRINT_COMPLETED_CHECKS then
+            check_log_string = check_log_string..check_name .. ':'..spacer..'Completed'..'\r\n'
+        end
+    else
+        if PRINT_MISSING_CHECKS then
+            check_log_string = check_log_string..check_name .. ':'..spacer..'Missing'..'\r\n'
+        end
+    end
+end
+
 -- Generates the string to display
 function write_check_list_string()
     check_log_string = ''
 
-    if DEBUG then
-        check_log_string = check_log_string .. '---------------------START Checks Summary---------------------'
-    end
-
     for next_zone_id=initial_zone_counter+1, current_zone_counter, 1 do
         local zone_name = counter_to_zone_map[next_zone_id]
         print_zone_header(zone_name)
-        for check_name, check_completed in next, check_list[next_zone_id] do
+
+        for check_id, check_table in next, check_list[next_zone_id] do
+            local check_name = check_table[1]
+            local check_completed = check_table[2]
             print_check(check_name, check_completed)
         end
     end
 
-    if DEBUG then
-        check_log_string = check_log_string .. '----------------------END Checks Summary----------------------\r\n\r\n\r\n'
-    end
+    print_grand_total_header()
+    check_log_string = check_log_string ..'\r\n\r\n\r\n'
 
     return check_log_string
 end
@@ -1020,5 +1049,7 @@ end
 
 ---------- Main Method -----------------
 --TODO MQ toggles?
+--TODO Epona check
+--TODO Fortress carpenter saved checks
 update_item_check_statuses()
 print(write_check_list_string())
