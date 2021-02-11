@@ -63,7 +63,7 @@ local grand_total_checks_completed = 0
 local grand_total_checks_total = 0
 
 -- A string buffer to prevent multiple I/O calls to print.
-local check_log_string
+local check_log_string = ''
 
 
 local debug = function(message)
@@ -140,7 +140,7 @@ local cow_check = function(scene_offset, bit_to_check,  check_name)
     end
 end
 
---NOTE: Possibly in a different scene?
+--TODO fix, this may have changed location since previous run's build of rando
 local bean_sale_check = function(scene_offset, bit_to_check,  check_name)
     scene_check(scene_offset, bit_to_check, 0x14, check_name)
 end
@@ -396,6 +396,7 @@ local read_hyrule_field_checks = function()
     chest_check(0x3E, 0x02, 'South-East grotto chest')
     chest_check(0x3E, 0x03, 'Open grotto chest')
     scrub_check(0x10,0x3,"Grotto by Lake Hylia scrub")
+    --TODO validate this, didn't work in 2nd test playthrough, got marked on diving grotto HP
     cow_check(0x3E,0x1,"Cow in web grotto")
 
     skulltula_check(0x0A,0x0,'Skulltula in cow grotto')
@@ -410,6 +411,7 @@ local read_lon_lon_ranch_checks = function()
     cow_check(0x4C,0x18,"Tower left cow")
     cow_check(0x4C,0x19,"Tower right cow")
 
+    event_check(0x1,0x8,'Epona check')
 
     scrub_check(0x26,0x1,"Child grotto left scrub")
     scrub_check(0x26,0x4,"Child grotto middle scrub")
@@ -504,6 +506,7 @@ end
 
 local read_graveyard_checks = function()
     set_zone('Graveyard')
+    --TODO validate this check, it worked in the 1st playthrough but failed in the 2nd
     event_check(0x5,0xA,'Sun\'s song check')
     chest_check(0x40, 0x00, 'Shield grave chest')
     chest_check(0x3F, 0x00, 'Sun song grave HP')
@@ -618,8 +621,7 @@ local read_death_mountain_crater_checks = function()
     on_the_ground_check(0x61,0x08,'Volcano HP')
     on_the_ground_check(0x61,0x02,'Climb wall HP')
     chest_check(0x3E, 0x1A, 'Upper grotto chest')
-    --TODO Correct bit mask or determine if this is located elsewhere
-    -- great_fairy_magic_check(0x3B, 0x0, 'Double magic great fairy')
+    great_fairy_magic_check(0x3B, 0x10, 'Double magic great fairy')
 
     scrub_check(0x61,0x6,'Ladder scrub (child only)')
     scrub_check(0x23,0x1,"Hammer grotto left scrub")
@@ -809,12 +811,16 @@ end
 
 local read_gerudo_fortress_checks = function()
     set_zone('Gerudo Fortress')
-    on_the_ground_check(0xC,0xC,'North F1 Carpenter')
-    on_the_ground_check(0xC,0xA,'North F2 Carpenter')
-    on_the_ground_check(0xC,0xE,'South F1 Carpenter')
-    on_the_ground_check(0xC,0xF,'South F2 Carpenter')
-    chest_check(0x5D, 0x00, 'Top of fortress chest')
+    on_the_ground_check(0xC,0xC,'North F1 Mini-boss')
+    on_the_ground_check(0xC,0xA,'North F2 Mini-boss')
+    on_the_ground_check(0xC,0xE,'South F1 Mini-boss')
+    on_the_ground_check(0xC,0xF,'South F2 Mini-boss')
     membership_card_check(0xC, 0x2, 'Membership card check')
+    chest_check(0x5D, 0x0, 'Top of fortress chest')
+    event_check(0x9,0x0,'Free North F1 Carpenter')
+    event_check(0x9,0x3,'Free North F2 Carpenter')
+    event_check(0x9,0x1,'Free South F1 Carpenter')
+    event_check(0x9,0x2,'Free South F2 Carpenter')
     info_table_check(0x33,0x0,"Horseback archery 1000pts")
     item_get_info_check(0x0,0x7,'Horseback archery 1500pts')
     skulltula_check(0x14,0x1,'Skulltula at top of fortress')
@@ -849,7 +855,6 @@ end
 
 local read_haunted_wasteland_checks = function()
     set_zone('Haunted Wasteland')
-    --TODO Verify in a playthough
     on_the_ground_check(0x5E,0x01,'Carpet salesman check')
     chest_check(0x5E, 0x00, 'Wasteland chest')
     skulltula_check(0x15,0x1,'Skulltula in shelter')
@@ -1049,7 +1054,5 @@ end
 
 ---------- Main Method -----------------
 --TODO MQ toggles?
---TODO Epona check
---TODO Fortress carpenter saved checks
 update_item_check_statuses()
 print(write_check_list_string())
