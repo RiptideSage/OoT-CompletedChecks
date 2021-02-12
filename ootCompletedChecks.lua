@@ -23,8 +23,8 @@ local scene_flags_offset = save_context_offset + 0xD4 --0x11A6A4
 local shop_context_offset = save_context_offset + 0x5B4 --0x11AB84
 local skulltula_flags_offset = save_context_offset + 0xE9C --0x11B46C
 local event_context_offset = save_context_offset + 0xED4 --0x11B4A4
+local big_poe_points_offset =  save_context_offset + 0xEBC -- 0x11B48C
 local fishing_context_offset = save_context_offset + 0xEC0 --0x11B490
-local big_poe_points_offset =  save_context_offset + 0xEEC -- 0x11B4BC
 local item_get_inf_offset = save_context_offset + 0xEF0 --0x11B4C0
 local inf_table_offset = save_context_offset + 0xEF8 -- 0x11B4C8
 
@@ -598,7 +598,6 @@ local read_goron_city_checks = function()
     on_the_ground_check(0x62,0x1F,'Spinning Pot HP')
     info_table_check(0x22,0x6,"Stop rolling goron as child")
     info_table_check(0x20,0x1,"Stop rolling goron as adult")
-    --TODO Verify in a playthough
     on_the_ground_check(0x62,0x1,'Medigoron giant\'s knife check')
     chest_check(0x62, 0x00, 'Rock Maze Left Chest')
     chest_check(0x62, 0x01, 'Rock Maze Right Chest')
