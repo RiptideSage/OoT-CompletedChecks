@@ -140,9 +140,9 @@ local cow_check = function(scene_offset, bit_to_check,  check_name)
     end
 end
 
---TODO fix, this may have changed location since previous run's build of rando
+--TODO Validate that this is in a fixed memory address in rando by generating a new patched ROM
 local bean_sale_check = function(scene_offset, bit_to_check,  check_name)
-    scene_check(scene_offset, bit_to_check, 0x14, check_name)
+    scene_check(scene_offset, bit_to_check, 0xC, check_name)
 end
 
 local great_fairy_magic_check = function(scene_offset,bit_to_check,check_name)
@@ -396,8 +396,8 @@ local read_hyrule_field_checks = function()
     chest_check(0x3E, 0x02, 'South-East grotto chest')
     chest_check(0x3E, 0x03, 'Open grotto chest')
     scrub_check(0x10,0x3,"Grotto by Lake Hylia scrub")
-    --TODO validate this, didn't work in 2nd test playthrough, got marked on diving grotto HP
-    cow_check(0x3E,0x1,"Cow in web grotto")
+    --TODO Validate that this is in a fixed memory address in rando by generating a new patched ROM
+    cow_check(0x3E,0x19,"Cow in web grotto")
 
     skulltula_check(0x0A,0x0,'Skulltula in cow grotto')
     skulltula_check(0x0A,0x1,'Skulltula in grotto near Kakariko')
@@ -506,7 +506,7 @@ end
 
 local read_graveyard_checks = function()
     set_zone('Graveyard')
-    --TODO validate this check, it worked in the 1st playthrough but failed in the 2nd
+    --TODO validate this check, it worked in previous versions of rando but fails in newer versions. Possibly related to song shuffle being on in previous runs?
     event_check(0x5,0xA,'Sun\'s song check')
     chest_check(0x40, 0x00, 'Shield grave chest')
     chest_check(0x3F, 0x00, 'Sun song grave HP')
@@ -684,7 +684,7 @@ end
 
 local read_zoras_river_checks = function()
     set_zone('Zora\'s River')
-    bean_sale_check(0x54,0x18,'Bean salesman check')
+    bean_sale_check(0x54,0x1,'Bean salesman check')
     chest_check(0x3E, 0x09, 'Open grotto on ledge chest')
     event_check(0xD,0x6,'Song of storms for frogs')
     event_check(0xD,0x0,'5 songs + frog song minigame')
