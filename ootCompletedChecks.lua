@@ -140,7 +140,6 @@ local cow_check = function(scene_offset, bit_to_check,  check_name)
     end
 end
 
---TODO Validate that this is in a fixed memory address in rando by generating a new patched ROM
 local bean_sale_check = function(scene_offset, bit_to_check,  check_name)
     scene_check(scene_offset, bit_to_check, 0xC, check_name)
 end
@@ -396,7 +395,6 @@ local read_hyrule_field_checks = function()
     chest_check(0x3E, 0x02, 'South-East grotto chest')
     chest_check(0x3E, 0x03, 'Open grotto chest')
     scrub_check(0x10,0x3,"Grotto by Lake Hylia scrub")
-    --TODO Validate that this is in a fixed memory address in rando by generating a new patched ROM
     cow_check(0x3E,0x19,"Cow in web grotto")
 
     skulltula_check(0x0A,0x0,'Skulltula in cow grotto')
@@ -506,7 +504,7 @@ end
 
 local read_graveyard_checks = function()
     set_zone('Graveyard')
-    --TODO validate this check, it worked in previous versions of rando but fails in newer versions. Possibly related to song shuffle being on in previous runs?
+    --This check is correct for Songs Anywhere, but in Song Locations the check depends on the song it contains
     event_check(0x5,0xA,'Sun\'s song check')
     chest_check(0x40, 0x00, 'Shield grave chest')
     chest_check(0x3F, 0x00, 'Sun song grave HP')
@@ -1053,5 +1051,6 @@ end
 
 ---------- Main Method -----------------
 --TODO MQ toggles?
+--TODO Add "Song Locations" Sun's Song check
 update_item_check_statuses()
 print(write_check_list_string())
