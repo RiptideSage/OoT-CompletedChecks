@@ -592,7 +592,7 @@ end
 
 local read_goron_city_checks = function()
     set_zone('Goron City')
-    event_check(0x5,0x7,'Darunia\'s joy')
+    event_check(0x3,0x6,'Darunia\'s joy')
     on_the_ground_check(0x62,0x1F,'Spinning Pot HP')
     info_table_check(0x22,0x6,"Stop rolling goron as child")
     info_table_check(0x20,0x1,"Stop rolling goron as adult")
