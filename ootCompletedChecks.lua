@@ -30,12 +30,10 @@ local inf_table_offset = save_context_offset + 0xEF8 -- 0x11B4C8
 
 
 -- Used to prevent passing the zone through the whole call stack
-local current_zone
-
+local current_zone = ""
 
 -- Avoiding magic numbers
-local initial_zone_counter = 100
--- Used to make sorting the zone printing order easier. Starting at 100 to bypass lexicographic sort saying 11 comes before 3
+local initial_zone_counter = 0
 local current_zone_counter = initial_zone_counter
 
 -- Used to lookup a zone's location in the table to keep print ordering
@@ -44,7 +42,7 @@ local counter_to_zone_map = {}
 
 -- Contains the status of each check
 -- Layout: {"zone_name" = { 1:{"checkName" = true}, 2:{"otherCheckName" = false}, ...}, "other_zone_name" = .... }
-local check_list= {}
+local check_list = {}
 
 -- Used to keep the in-zone checks listed in order
 local initial_in_zone_check_index = 0
@@ -938,8 +936,9 @@ local print_grand_total_header = function()
     local header_length = 70
     local header_divider_character = '&'
     local header_name = 'Grand Total'
-    local left_header_string = string.rep(header_divider_character,(header_length-string.len(header_name))/2)
-    local right_header_string = string.rep(header_divider_character,(header_length-string.len(header_name))/2)
+    local num_header_characters = math.floor((header_length-string.len(header_name))/2)
+    local left_header_string = string.rep(header_divider_character,num_header_characters)
+    local right_header_string = string.rep(header_divider_character,num_header_characters)
 
     local center_header_string = header_name..' ('..grand_total_checks_completed..'/'..grand_total_checks_total..')'
 
@@ -956,8 +955,10 @@ local print_zone_header = function(zone_name)
     if PRINT_COMPLETED_ZONE_HEADERS or (num_zone_checks_completed[zone_name] < num_zone_checks_total[zone_name]) then
         local header_length = 70
         local header_divider_character = '#'
-        local left_header_string = string.rep(header_divider_character,(header_length-string.len(zone_name))/2)
-        local right_header_string = string.rep(header_divider_character,(header_length-string.len(zone_name))/2)
+
+        local num_divider_characters = math.floor((header_length-string.len(zone_name))/2)
+        local left_header_string =  string.rep(header_divider_character,num_divider_characters)
+        local right_header_string = string.rep(header_divider_character,num_divider_characters)
 
         local center_header_string = zone_name..' ('..num_zone_checks_completed[zone_name]..'/'..num_zone_checks_total[zone_name]..')'
 
