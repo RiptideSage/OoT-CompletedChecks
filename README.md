@@ -11,7 +11,7 @@ This will freeze the game while printing (~1 second)
 
 # Runs On
 - OoT Rando V6.0
-- BizHawk V2.3
+- BizHawk V2.3, V2.9
 
 # Currently Supports
 - Shop-sanity
